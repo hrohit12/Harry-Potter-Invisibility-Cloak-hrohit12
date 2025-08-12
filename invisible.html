@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harry Potter Invisibility Cloak</title>
+    
+    <!-- Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for a clean look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Custom style for the countdown text */
+        .countdown-text {
+            font-size: 3rem;
+            font-weight: 700;
+            color: white;
+            text-shadow: 0 0 15px rgba(0,0,0,0.7);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-3xl text-center">
+        <h1 class="text-4xl font-bold mb-2">Harry Potter Invisibility Cloak 🧙‍♂️</h1>
+        <p class="text-gray-400 mb-4">Use a <span class="text-red-400 font-semibold">RED</span> cloth to become invisible!</p>
+        
+        <div id="ui-container" class="relative w-full aspect-video bg-black rounded-xl shadow-2xl overflow-hidden">
+            <!-- Canvas for displaying the final video output -->
+            <canvas id="outputCanvas" class="w-full h-full"></canvas>
+            
+            <!-- Hidden video element to capture webcam feed -->
+            <video id="webcam" autoplay playsinline class="hidden"></video>
+            
+            <!-- UI elements that overlay the video -->
+            <div id="overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black bg-opacity-50 transition-opacity duration-500">
+                <div id="status" class="text-2xl font-semibold"></div>
+                <button id="startButton" class="mt-4 px-8 py-3 bg-indigo-600 hover:bg-indigo-700 rounded-lg text-xl font-bold transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-4 focus:ring-indigo-500 focus:ring-opacity-50">
+                    Start Magic
+                </button>
+            </div>
+        </div>
+        <p id="errorMessage" class="text-red-400 mt-4 h-6"></p>
+    </div>
+
+    <script>
+        // --- DOM Element References ---
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('outputCanvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const startButton = document.getElementById('startButton');
+        const statusDiv = document.getElementById('status');
+        const overlay = document.getElementById('overlay');
+        const errorMessage = document.getElementById('errorMessage');
+
+        let backgroundFrame = null;
+        let animationFrameId;
+
+        // --- Main Application Logic ---
+
+        // 1. Event Listener to start the application
+        startButton.addEventListener('click', startWebcam);
+
+        // 2. Function to request webcam access
+        async function startWebcam() {
+            // Clear any previous errors and hide the button
+            errorMessage.textContent = '';
+            startButton.classList.add('hidden');
+            statusDiv.textContent = 'Requesting camera access...';
+
+            try {
+                // Request access to the user's webcam
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'user' } 
+                });
+                video.srcObject = stream;
+                // Wait for the video to load its metadata to get dimensions
+                video.onloadedmetadata = () => {
+                    // Set canvas dimensions to match the video feed
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    // Start the process of capturing the background
+                    captureBackground();
+                };
+            } catch (err) {
+                // Handle errors (e.g., user denies permission)
+                console.error("Error accessing webcam: ", err);
+                statusDiv.textContent = 'Camera access denied!';
+                errorMessage.textContent = 'Please allow camera access and refresh the page.';
+                startButton.classList.remove('hidden');
+            }
+        }
+
+        // 3. Function to capture the static background
+        function captureBackground() {
+            let countdown = 3;
+            statusDiv.innerHTML = `Get ready! Capturing background in <br> <span class="countdown-text">${countdown}</span>`;
+            
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                if (countdown > 0) {
+                    statusDiv.innerHTML = `Get ready! Capturing background in <br> <span class="countdown-text">${countdown}</span>`;
+                } else {
+                    clearInterval(countdownInterval);
+                    statusDiv.textContent = 'Background captured! ✨';
+                    
+                    // Draw the current video frame to the canvas
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    // Get the pixel data of this frame to use as the background
+                    backgroundFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    // Hide the overlay and start the main processing loop
+                    overlay.classList.add('opacity-0', 'pointer-events-none');
+                    processFrames();
+                }
+            }, 1000);
+        }
+
+        /**
+         * Converts an RGB color value to HSV.
+         * @param   Number  r       The red color value (0-255)
+         * @param   Number  g       The green color value (0-255)
+         * @param   Number  b       The blue color value (0-255)
+         * @return  Array           The HSV representation [h, s, v]
+         */
+        function rgbToHsv(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            let max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, v = max;
+            let d = max - min;
+            s = max == 0 ? 0 : d / max;
+            if (max == min) {
+                h = 0; // achromatic (grey)
+            } else {
+                switch (max) {
+                    case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                    case g: h = (b - r) / d + 2; break;
+                    case b: h = (r - g) / d + 4; break;
+                }
+                h /= 6;
+            }
+            // h is 0-1, s is 0-1, v is 0-1. We convert h to degrees.
+            return [h * 360, s, v];
+        }
+
+
+        // 4. Main loop to process video frames in real-time
+        function processFrames() {
+            // Draw the current video frame onto the canvas
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // Get the pixel data for the current frame
+            const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const currentFrameData = currentFrame.data;
+            const backgroundFrameData = backgroundFrame.data;
+
+            // Iterate over every pixel in the frame
+            for (let i = 0; i < currentFrameData.length; i += 4) {
+                const r = currentFrameData[i];
+                const g = currentFrameData[i + 1];
+                const b = currentFrameData[i + 2];
+
+                // Convert the pixel's RGB color to HSV
+                const [h, s, v] = rgbToHsv(r, g, b);
+
+                // --- Color Detection Logic for RED using HSV ---
+                // The hue range for red.
+                const isRed = (h >= 0 && h <= 15) || (h >= 345 && h <= 360);
+                // The saturation and value thresholds are adjusted to be more specific to red cloth
+                // and to exclude skin tones and other reddish-brown colors.
+                const isSaturated = s > 0.5;
+                const isBright = v > 0.25;
+
+                if (isRed && isSaturated && isBright) {
+                    // If the pixel is red, replace it with the corresponding pixel
+                    // from the captured background frame.
+                    currentFrameData[i] = backgroundFrameData[i];         // Red
+                    currentFrameData[i + 1] = backgroundFrameData[i + 1]; // Green
+                    currentFrameData[i + 2] = backgroundFrameData[i + 2]; // Blue
+                }
+            }
+            
+            // Put the modified pixel data back onto the canvas
+            ctx.putImageData(currentFrame, 0, 0);
+            
+            // Request the next animation frame to create a smooth video loop
+            animationFrameId = requestAnimationFrame(processFrames);
+        }
+
+    </script>
+</body>
+</html>
