@@ -33,7 +33,7 @@ To run this project on your local machine, follow these simple steps:
 
 Clone the repository:
 
-git clone https://github.com/your-username/your-repository-name.git
+git clone https://github.com/hrohit12/Real-Time-Invisibility-Cloak-hrohit12
 
 Navigate to the project directory:
 
